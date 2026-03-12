@@ -1,0 +1,86 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "services": {
+    "postgres": {
+      "name": "twenty-postgres",
+      "image": "postgres:15",
+      "variables": {
+        "POSTGRES_PASSWORD": "twenty2026",
+        "POSTGRES_DB": "twenty",
+        "POSTGRES_USER": "postgres",
+        "POSTGRES_HOST_AUTH_METHOD": "trust"
+      },
+      "volumes": [
+        {
+          "name": "postgres_data",
+          "mountPath": "/var/lib/postgresql/data"
+        }
+      ],
+      "healthcheck": {
+        "command": ["pg_isready", "-U", "postgres", "-d", "twenty", "-h", "localhost"],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 5
+      }
+    },
+    "redis": {
+      "name": "twenty-redis", 
+      "image": "redis:7-alpine"
+    },
+    "twenty-server": {
+      "name": "twenty-server",
+      "image": "twentycrm/twenty:latest",
+      "dependsOn": ["postgres", "redis"],
+      "variables": {
+        "SERVER_URL": "${{RAILWAY_PUBLIC_DOMAIN}}",
+        "FRONT_BASE_URL": "${{RAILWAY_PUBLIC_DOMAIN}}",
+        "PG_DATABASE_URL": "postgresql://postgres:twenty2026@postgres.railway.internal:5432/twenty",
+        "REDIS_URL": "redis://redis.railway.internal:6379",
+        "ACCESS_TOKEN_SECRET": "twenty-access-secret-railway-2026",
+        "LOGIN_TOKEN_SECRET": "twenty-login-secret-railway-2026",
+        "REFRESH_TOKEN_SECRET": "twenty-refresh-secret-railway-2026", 
+        "FILE_TOKEN_SECRET": "twenty-file-secret-railway-2026",
+        "STORAGE_TYPE": "local",
+        "STORAGE_LOCAL_PATH": "/app/packages/twenty-server/.local-storage",
+        "TELEMETRY_ENABLED": "false"
+      },
+      "volumes": [
+        {
+          "name": "twenty_storage",
+          "mountPath": "/app/packages/twenty-server/.local-storage"
+        }
+      ]
+    },
+    "twenty-front": {
+      "name": "twenty-front",
+      "image": "twentycrm/twenty-front:latest", 
+      "dependsOn": ["twenty-server"],
+      "variables": {
+        "REACT_APP_SERVER_BASE_URL": "${{RAILWAY_PUBLIC_DOMAIN}}"
+      }
+    },
+    "nginx-proxy": {
+      "name": "twenty-nginx",
+      "image": "nginx:alpine",
+      "dependsOn": ["twenty-front", "twenty-server"],
+      "variables": {
+        "PORT": "$PORT"
+      },
+      "buildCommand": "echo 'Nginx with auth ready'",
+      "startCommand": "nginx -g 'daemon off;'",
+      "publicPath": "/",
+      "volumes": [
+        {
+          "name": "nginx_config",
+          "mountPath": "/etc/nginx/nginx.conf",
+          "source": "./nginx.conf"
+        },
+        {
+          "name": "auth_config", 
+          "mountPath": "/etc/nginx/.htpasswd",
+          "source": "./auth/.htpasswd"
+        }
+      ]
+    }
+  }
+}
